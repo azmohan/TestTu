@@ -1,0 +1,12 @@
+.gradle/
+.idea/
+TestTu.iml
+build.gradle
+build/
+gradle.properties
+gradle/
+gradlew
+gradlew.bat
+local.properties
+log
+settings.gradle

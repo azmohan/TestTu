@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/lsq_smart_beauty"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <RelativeLayout
+            android:id="@+id/lsq_filter_content"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <include
+                android:id="@+id/lsq_filter_config_view"
+                layout="@layout/filter_config_view"
+                android:layout_width="match_parent"
+                android:layout_height="180dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_below="@id/lsq_filter_config_view"
+                android:layout_marginTop="10dp"
+                android:orientation="horizontal">
+
+                <org.lasque.tusdkvideodemo.views.FilterListView
+                    android:id="@+id/lsq_filter_list_view"
+                    style="@style/lsq_record_filter_list_view"
+                    android:paddingLeft="8dp" />
+            </LinearLayout>
+        </RelativeLayout>
+    </FrameLayout>
+
+</LinearLayout>

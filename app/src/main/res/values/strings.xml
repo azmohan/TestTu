@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">TestTu</string>
+    <!--  滤镜参数 -->
+    <string name="lsq_filter_set_smoothing">润滑</string>
+    <string name="lsq_filter_set_whitening">白皙</string>
+    <string name="lsq_filter_set_mixied">效果</string>
+    <string name="lsq_filter_set_eyeSize">大眼</string>
+    <string name="lsq_filter_set_chinSize">瘦脸</string>
+</resources>
