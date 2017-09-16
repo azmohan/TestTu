@@ -1,7 +1,9 @@
 package com.freeme.camera.tu;
 
 import android.app.Activity;
+import android.content.ContentValues;
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.graphics.SurfaceTexture;
 import android.hardware.Camera;
 import android.opengl.GLES20;
@@ -13,14 +15,22 @@ import android.view.Surface;
 import android.view.SurfaceHolder;
 
 import org.lasque.tusdk.api.TuSDKFilterEngine;
+import org.lasque.tusdk.core.exif.ExifInterface;
 import org.lasque.tusdk.core.seles.SelesParameters;
 import org.lasque.tusdk.core.seles.sources.SelesOutInput;
 import org.lasque.tusdk.core.struct.TuSdkSize;
 import org.lasque.tusdk.core.utils.ContextUtils;
 import org.lasque.tusdk.core.utils.TLog;
+import org.lasque.tusdk.core.utils.TuSdkDate;
+import org.lasque.tusdk.core.utils.hardware.CameraConfigs;
 import org.lasque.tusdk.core.utils.hardware.CameraHelper;
+import org.lasque.tusdk.core.utils.image.ExifHelper;
+import org.lasque.tusdk.core.utils.image.ImageOrientation;
+import org.lasque.tusdk.core.utils.sqllite.ImageSqlHelper;
+import org.lasque.tusdk.core.utils.sqllite.ImageSqlInfo;
 
 import java.io.IOException;
+import java.nio.IntBuffer;
 import java.util.List;
 
 import javax.microedition.khronos.egl.EGLConfig;
@@ -44,6 +54,10 @@ public class GLPreviewSurface extends GLSurfaceView implements GLSurfaceView.Ren
     private Camera.Size mPreviewSize;
     private final float[] mSurfaceTextureMatrix = new float[16];
     private FilerChangeListener mFilerChangedListener;
+    private Context mContext;
+    private long mCaptureTime;
+    public ExifInterface mMetadata;
+    private TuSdkDate mCaptureStartTime;
 
     public interface FilerChangeListener {
         public void onFilerChanged(SelesOutInput filter);
@@ -56,12 +70,45 @@ public class GLPreviewSurface extends GLSurfaceView implements GLSurfaceView.Ren
 
     public GLPreviewSurface(Context context, AttributeSet attrs) {
         super(context, attrs);
+        mContext = context;
         getHolder().addCallback(this);
         setEGLContextClientVersion(2);
         setRenderer(this);
         setRenderMode(GLSurfaceView.RENDERMODE_WHEN_DIRTY);
     }
 
+    public void setCameraDisplayOrientation(Activity activity, int cameraId, Camera camera) {
+        Camera.CameraInfo info = new Camera.CameraInfo();
+        Camera.getCameraInfo(cameraId, info);
+
+        int rotation = activity.getWindowManager().getDefaultDisplay().getRotation();
+
+        int degrees = 0;
+        switch (rotation) {
+            case Surface.ROTATION_0:
+                degrees = 0;
+                break;
+            case Surface.ROTATION_90:
+                degrees = 90;
+                break;
+            case Surface.ROTATION_180:
+                degrees = 180;
+                break;
+            case Surface.ROTATION_270:
+                degrees = 270;
+                break;
+        }
+
+        int result;
+        if (info.facing == Camera.CameraInfo.CAMERA_FACING_FRONT) {
+            result = (info.orientation + degrees) % 360;
+            result = (360 - result) % 360; // compensate the mirror
+        } else { // back-facing
+            result = (info.orientation - degrees + 360) % 360;
+        }
+
+        camera.setDisplayOrientation(result);
+    }
 
     private void startCamera() {
         if (mCamera != null) {
@@ -75,7 +122,7 @@ public class GLPreviewSurface extends GLSurfaceView implements GLSurfaceView.Ren
         int i = 0;
         for (i = 0; i < numCameras; i++) {
             Camera.getCameraInfo(i, info);
-            if (info.facing == Camera.CameraInfo.CAMERA_FACING_FRONT) {
+            if (info.facing == Camera.CameraInfo.CAMERA_FACING_BACK) {
                 mCamera = Camera.open(i);
 
                 mCameraId = i;
@@ -108,9 +155,22 @@ public class GLPreviewSurface extends GLSurfaceView implements GLSurfaceView.Ren
         CameraHelper.setPreviewSize(getContext(), params, screenSize.maxSide(), 1.0f);
 
         // 设置相机朝向，和 Activity 保持一致
-        //setCameraDisplayOrientation(this, mCameraId, mCamera);
+        setCameraDisplayOrientation((Activity) mContext, mCameraId, mCamera);
 
         mPreviewSize = params.getPreviewSize();
+        List<Camera.Size> pictureSizes = params.getSupportedPictureSizes();
+        long max = 0;
+        Camera.Size maxSize = null;
+        for (Camera.Size size : pictureSizes) {
+            long multiple = size.width * size.height;
+            if (multiple > max) {
+                max = multiple;
+                maxSize = size;
+            }
+        }
+        TLog.i("max size :" + maxSize.toString());
+        params.setPictureSize(maxSize.width, maxSize.height);
+        mCamera.setParameters(params);
 
         TLog.i("mPreviewSize : " + mPreviewSize.width + "   " + mPreviewSize.height);
 
@@ -139,6 +199,18 @@ public class GLPreviewSurface extends GLSurfaceView implements GLSurfaceView.Ren
         destroyFilterEngine();
     }
 
+    private void stopPreview() {
+        if (mCamera != null) {
+            mCamera.stopPreview();
+        }
+    }
+
+    private void startPreview() {
+        if (mCamera != null) {
+            mCamera.startPreview();
+        }
+    }
+
     private void tryStartPreview() {
         if (mCameraStarted)
             return;
@@ -160,15 +232,77 @@ public class GLPreviewSurface extends GLSurfaceView implements GLSurfaceView.Ren
         }
     }
 
+    public void takePicture() {
+        Camera.Parameters parameters = mCamera.getParameters();
+        Camera.Size size = parameters.getPictureSize();
+        TLog.i("current picture size:" + size.width + "x" + size.height);
+        mCamera.takePicture(null, null, new Camera.PictureCallback() {
+            @Override
+            public void onPictureTaken(byte[] data, Camera camera) {
+                stopPreview();
+                mMetadata = ExifHelper.getExifInterface(data);
+                mCaptureStartTime = TuSdkDate.create();
+                mCaptureTime = System.currentTimeMillis();
+                mFilterEngine.asyncProcessPictureData(data);
+            }
+
+        });
+    }
+
     private void constructFilterEngine() {
         if (mFilterEngine != null) return;
 
         // 初始化滤镜引擎
-        mFilterEngine = new TuSDKFilterEngine(true, true);
+        mFilterEngine = new TuSDKFilterEngine(mContext, true);
         mFilterEngine.setOutputOriginalImageOrientation(false);
         // 大眼瘦脸必须开启该配置
         mFilterEngine.setEnableLiveSticker(true);
+        mFilterEngine.setCameraFacing(CameraConfigs.CameraFacing.Front);
+        mFilterEngine.setOutputOriginalImageOrientation(true);
         mFilterEngine.setDelegate(new TuSDKFilterEngine.TuSDKFilterEngineDelegate() {
+            @Override
+            public void onPictureDataCompleted(IntBuffer intBuffer, TuSdkSize tuSdkSize) {
+                TLog.i("handle sbf time:" + (System.currentTimeMillis() - mCaptureTime) + " ms");
+
+                TLog.d("拍摄处理总耗时: %d ms", mCaptureStartTime.diffOfMillis());
+
+                TuSdkDate date = TuSdkDate.create();
+
+                Bitmap mBitmap = Bitmap.createBitmap(tuSdkSize.width, tuSdkSize.height, Bitmap.Config.ARGB_8888);
+                mBitmap.copyPixelsFromBuffer(intBuffer);
+
+                long s1 = date.diffOfMillis();
+
+                TLog.d("buffer -> bitmap taken: %s", s1);
+
+                date = TuSdkDate.create();
+
+                // 将 Bitmap 存入系统相册
+                ContentValues values = ImageSqlHelper.build(mBitmap, null, "");
+                ImageSqlInfo imageInfo = ImageSqlHelper.saveJpgToAblum(mContext, mBitmap, 100, values);
+
+
+                if (mMetadata != null) {
+                    mMetadata.setTagValue(ExifInterface.TAG_IMAGE_WIDTH, tuSdkSize.width);
+                    mMetadata.setTagValue(ExifInterface.TAG_IMAGE_LENGTH, tuSdkSize.height);
+                    mMetadata.setTagValue(ExifInterface.TAG_ORIENTATION, ImageOrientation.Up.getExifOrientation());
+                    ExifHelper.writeExifInterface(mMetadata, imageInfo.path);
+                }
+
+                // 刷新相册
+                ImageSqlHelper.notifyRefreshAblum(mContext, imageInfo);
+
+                s1 = date.diffOfMillis();
+
+                TLog.d("save bitmap taken: %s", s1);
+
+                // 拍照完毕后重新启动相机
+                startPreview();
+
+//                mSurfaceView.requestRender();
+
+            }
+
             @Override
             public void onFilterChanged(SelesOutInput filter) {
                 if (mFilerChangedListener != null) {

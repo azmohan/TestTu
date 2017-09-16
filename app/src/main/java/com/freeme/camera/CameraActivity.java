@@ -22,6 +22,7 @@ public class CameraActivity extends Activity {
     private ListView mListView;
     private LayoutInflater mLayoutInflater;
     private GLPreviewSurface mGLPreviewSurface;
+    private TextView mCaptureView;
     private static String[] mItems = {"smoothing", "mixed", "whitening", "eyeSize", "chinSize"};
     private SelesOutInput mFilter;
 
@@ -134,5 +135,12 @@ public class CameraActivity extends Activity {
         mGLPreviewSurface = (GLPreviewSurface) findViewById(R.id.preview);
         mGLPreviewSurface.setFilterChangeListener(mListener);
         mLayoutInflater = LayoutInflater.from(this);
+        mCaptureView = (TextView) findViewById(R.id.capture);
+        mCaptureView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                mGLPreviewSurface.takePicture();
+            }
+        });
     }
 }

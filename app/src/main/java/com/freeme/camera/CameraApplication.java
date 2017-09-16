@@ -14,6 +14,6 @@ public class CameraApplication extends Application {
     public void onCreate() {
         super.onCreate();
         TuSdk.enableDebugLog(true);
-        TuSdk.init(getApplicationContext(), "d38f9eb36a291fc2-00-7h9fr1");
+        TuSdk.init(getApplicationContext(), "a6fbbdc7cf3dbcc7-03-7h9fr1");
     }
 }
