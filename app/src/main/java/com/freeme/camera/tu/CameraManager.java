@@ -32,4 +32,5 @@ public class CameraManager {
     public void closeCamera() {
 
     }
+
 }

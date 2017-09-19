@@ -122,7 +122,7 @@ public class GLPreviewSurface extends GLSurfaceView implements GLSurfaceView.Ren
         int i = 0;
         for (i = 0; i < numCameras; i++) {
             Camera.getCameraInfo(i, info);
-            if (info.facing == Camera.CameraInfo.CAMERA_FACING_BACK) {
+            if (info.facing == Camera.CameraInfo.CAMERA_FACING_FRONT) {
                 mCamera = Camera.open(i);
 
                 mCameraId = i;
@@ -153,9 +153,6 @@ public class GLPreviewSurface extends GLSurfaceView implements GLSurfaceView.Ren
 
         // 选择和屏幕比例适配的预览尺寸
         CameraHelper.setPreviewSize(getContext(), params, screenSize.maxSide(), 1.0f);
-
-        // 设置相机朝向，和 Activity 保持一致
-        setCameraDisplayOrientation((Activity) mContext, mCameraId, mCamera);
 
         mPreviewSize = params.getPreviewSize();
         List<Camera.Size> pictureSizes = params.getSupportedPictureSizes();
@@ -437,9 +434,7 @@ public class GLPreviewSurface extends GLSurfaceView implements GLSurfaceView.Ren
             GLES20.glViewport(0, 0, mPreviewSize.width, mPreviewSize.height);
         }
 
-        mSurfaceTexture.getTransformMatrix(mSurfaceTextureMatrix);
-
-        textureProgram.draw(textureId, mSurfaceTextureMatrix);
+        textureProgram.draw(textureId);
     }
 
     @Override

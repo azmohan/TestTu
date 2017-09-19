@@ -55,11 +55,14 @@ class Texture2dProgram {
                     "    gl_FragColor = texture2D(sTexture, vTextureCoord);\n" +
                     "}\n";
 
-    private static final float imageVertices[] = {-1.0f, 1.0f, -1.0f, -1.0f,
-            1.0f, 1.0f, 1.0f, -1.0f};
+    private static final float imageVertices[] = {
+            -1.0f, -1.0f,
+            1.0f, -1.0f,
+            -1.0f, 1.0f,
+            1.0f, 1.0f};
 
-    private static final float textureCoordinate[] = {0.0f, 0.0f, 0.f, 1.0f,
-            1.0f, 0.0f, 1.0f, 1.0f};
+    private static final float textureCoordinate[] = {0.0f, 0.0f, 1.f, 0.0f,
+            0.0f, 1.0f, 1.0f, 1.0f};
 
     private ProgramType mProgramType;
 
@@ -138,7 +141,7 @@ class Texture2dProgram {
      *
      * @param textureId 纹理
      */
-    public void draw(int textureId, float[] texMatrix) {
+    public void draw(int textureId) {
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
         GLES20.glClearColor(0, 0, 0, 1.0f);
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
