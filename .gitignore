@@ -1,3 +1,6 @@
 build/
+.gradle/
 .idea/
 log
+app/app.iml
+local.properties
